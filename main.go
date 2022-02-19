@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -12,11 +13,20 @@ import (
 	"golang.org/x/crypto/ssh/terminal"
 )
 
+const dbFile = "wordle.db"
+
 var (
 	IdleTimeout = 60 * time.Second
+	repo        *sqliteRepo
 )
 
 func main() {
+	var err error
+	repo, err = newRepo(dbFile)
+	if err != nil {
+		log.Fatal(err)
+	}
+
 	ssh.Handle(handler)
 	server := &ssh.Server{
 		Addr:        ":22",
@@ -26,6 +36,7 @@ func main() {
 }
 
 func handler(s ssh.Session) {
+	ctx := context.Background()
 	game := NewGame(wordOfTheDay())
 
 	oldState, err := terminal.MakeRaw(0)
@@ -38,11 +49,17 @@ func handler(s ssh.Session) {
 	term := terminal.NewTerminal(s, "")
 	term.SetPrompt("> ")
 
-	userStats := LoadStats(s)
-	if len(userStats.Games) > 0 {
-		mostRecentGame := userStats.Games[len(userStats.Games)-1]
+	userID := userKey(s)
+	games, err := repo.ListGames(ctx, userID)
+	if err != nil {
+		log.Printf("failed to list games for user %s: %v", userID, err.Error())
+		return
+	}
+
+	if len(games) > 0 {
+		mostRecentGame := games[len(games)-1]
 		if mostRecentGame.Answer == wordOfTheDay() {
-			RenderStats(s, term, &mostRecentGame, userStats)
+			RenderStats(ctx, s, term, &mostRecentGame)
 			return
 		}
 	}
@@ -64,9 +81,8 @@ func handler(s ssh.Session) {
 				Render(s, term, game)
 				time.Sleep(time.Millisecond * 500)
 				Warn(s, term, game.Answer)
-				userStats.Games = append(userStats.Games, *game)
-				SaveStats(s, userStats)
-				RenderStats(s, term, game, userStats)
+				repo.SaveGame(ctx, userID, game)
+				RenderStats(ctx, s, term, game)
 				return
 			}
 			Warn(s, term, err.Error())
@@ -77,23 +93,25 @@ func handler(s ssh.Session) {
 		if win {
 			time.Sleep(time.Millisecond * 500)
 			WarnGreen(s, term, "Winner!\n")
-			userStats.Games = append(userStats.Games, *game)
-			SaveStats(s, userStats)
-			RenderStats(s, term, game, userStats)
+			repo.SaveGame(ctx, userID, game)
+			RenderStats(ctx, s, term, game)
 			return
 		}
 	}
 }
 
-func RenderStats(s ssh.Session, term *terminal.Terminal, game *Game, userStats *UserStats) {
+func RenderStats(ctx context.Context, s ssh.Session, term *terminal.Terminal, game *Game) {
+	userID := userKey(s)
+	games, _ := repo.ListGames(ctx, userID)
+
 	Render(s, term, game)
 	Print(s, term, "\n    Statistics\n")
-	Print(s, term, fmt.Sprintf("played..................%d\n", userStats.Played()))
-	Print(s, term, fmt.Sprintf("win %%...................%d\n", userStats.WinPercent()))
-	Print(s, term, fmt.Sprintf("current streak..........%d\n", userStats.CurrentStreak()))
-	Print(s, term, fmt.Sprintf("max streak..............%d\n", userStats.MaxStreak()))
+	Print(s, term, fmt.Sprintf("played..................%d\n", Played(games)))
+	Print(s, term, fmt.Sprintf("win %%...................%d\n", WinPercent(games)))
+	Print(s, term, fmt.Sprintf("current streak..........%d\n", CurrentStreak(games)))
+	Print(s, term, fmt.Sprintf("max streak..............%d\n", MaxStreak(games)))
 	Print(s, term, "guess distribution.......\n")
-	for i, val := range userStats.GuessDistribution() {
+	for i, val := range GuessDistribution(games) {
 		Print(s, term, fmt.Sprintf("    %d...................%d\n", i+1, val))
 	}
 

@@ -22,7 +22,12 @@ publish:
 .PHONY: run
 run:
 	@echo 'Listening on localhost:2222'
-	@docker run -t --rm -p 2222:22 $(REPO)
+	@docker run \
+		-t \
+		--rm \
+		-p 2222:22 \
+		-v $(shell pwd)/wordle.db:/root/wordle.db \
+		$(REPO)
 
 buildlinux:
 	GOOS=linux GOARCH=amd64 go build -o ./bin/atm .
