@@ -4,7 +4,7 @@ RUN apk --no-cache add git build-base
 
 WORKDIR /go/src/github.com/bndw/wordle
 COPY go.* ./
-RUN go mod tidy
+RUN go mod download
 COPY . .
 
 RUN go build -o /bin/app .

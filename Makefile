@@ -13,6 +13,9 @@ dev: build run
 build:
 	@docker build -t $(REPO) .
 
+build-bin:
+	go build -o ./bin/wordle .
+
 .PHONY: publish
 publish:
 	docker push $(TAG_LATEST)
@@ -20,7 +23,7 @@ publish:
 	docker push $(TAG_COMMIT)
 
 .PHONY: run
-run:
+run: wordle.db
 	@echo 'Listening on localhost:2222'
 	@docker run \
 		-t \
@@ -28,6 +31,9 @@ run:
 		-p 2222:22 \
 		-v $(shell pwd)/wordle.db:/root/wordle.db \
 		$(REPO)
+
+wordle.db:
+	@touch $@
 
 buildlinux:
 	GOOS=linux GOARCH=amd64 go build -o ./bin/atm .

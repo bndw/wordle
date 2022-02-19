@@ -16,7 +16,7 @@ import (
 const dbFile = "wordle.db"
 
 var (
-	IdleTimeout = 60 * time.Second
+	IdleTimeout = 5 * time.Minute
 	repo        *sqliteRepo
 )
 
@@ -38,13 +38,6 @@ func main() {
 func handler(s ssh.Session) {
 	ctx := context.Background()
 	game := NewGame(wordOfTheDay())
-
-	oldState, err := terminal.MakeRaw(0)
-	if err != nil {
-		log.Printf("failed to make old state: %v", err.Error())
-		return
-	}
-	defer terminal.Restore(0, oldState)
 
 	term := terminal.NewTerminal(s, "")
 	term.SetPrompt("> ")
@@ -166,14 +159,14 @@ func Render(s ssh.Session, term *terminal.Terminal, game *Game) {
 func Warn(s ssh.Session, term *terminal.Terminal, text string) {
 	Clear(s)
 	PrintRed(s, term, text)
-	time.Sleep(time.Second * 2)
+	time.Sleep(time.Second * 1)
 	Clear(s)
 }
 
 func WarnGreen(s ssh.Session, term *terminal.Terminal, text string) {
 	Clear(s)
 	PrintGreen(s, term, text)
-	time.Sleep(time.Second * 2)
+	time.Sleep(time.Second * 1)
 	Clear(s)
 }
 
