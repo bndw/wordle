@@ -6,10 +6,12 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"os"
 	"strings"
 	"time"
 
 	"github.com/gliderlabs/ssh"
+	gossh "golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/terminal"
 )
 
@@ -21,7 +23,8 @@ var (
 )
 
 func main() {
-	port := flag.String("p", "22", "port")
+	hostKey := flag.String("key", "key.pem", "key")
+	port := flag.String("port", "22", "port")
 	flag.Parse()
 
 	var err error
@@ -30,11 +33,21 @@ func main() {
 		log.Fatal(err)
 	}
 
-	ssh.Handle(handler)
 	server := &ssh.Server{
 		Addr:        fmt.Sprintf(":%s", *port),
 		IdleTimeout: IdleTimeout,
+		Handler:     handler,
 	}
+
+	hostKeyPEM, err := os.ReadFile(*hostKey)
+	if err != nil {
+		log.Fatal(err)
+	}
+	hostKeySigner, err := gossh.ParsePrivateKey(hostKeyPEM)
+	if err != nil {
+		log.Fatal(err)
+	}
+	server.AddHostKey(hostKeySigner)
 
 	fmt.Printf("listening on :%s\n", *port)
 	log.Fatal(server.ListenAndServe())
