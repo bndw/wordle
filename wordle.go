@@ -49,6 +49,7 @@ func (g *Game) Guess(word string) (error, bool) {
 
 	if g.IsDone() {
 		g.Finished = time.Now()
+		return ErrGameOver, g.Won
 	}
 	return nil, g.Won
 }

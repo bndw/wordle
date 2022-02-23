@@ -1,8 +1,8 @@
 package main
 
 import (
-	"context"
 	"errors"
+	"flag"
 	"fmt"
 	"io"
 	"log"
@@ -21,6 +21,9 @@ var (
 )
 
 func main() {
+	port := flag.String("p", "22", "port")
+	flag.Parse()
+
 	var err error
 	repo, err = newRepo(dbFile)
 	if err != nil {
@@ -29,30 +32,38 @@ func main() {
 
 	ssh.Handle(handler)
 	server := &ssh.Server{
-		Addr:        ":22",
+		Addr:        fmt.Sprintf(":%s", *port),
 		IdleTimeout: IdleTimeout,
 	}
+
+	fmt.Printf("listening on :%s\n", *port)
 	log.Fatal(server.ListenAndServe())
 }
 
 func handler(s ssh.Session) {
-	ctx := context.Background()
-	game := NewGame(wordOfTheDay())
-
-	term := terminal.NewTerminal(s, "")
+	var (
+		ctx  = s.Context()
+		term = terminal.NewTerminal(s, "")
+		game = NewGame(wordOfTheDay())
+		user = userKey(s)
+	)
 	term.SetPrompt("> ")
 
-	userID := userKey(s)
-	games, err := repo.ListGames(ctx, userID)
+	log.Printf("player connected: %s\n", user)
+	defer func() {
+		log.Printf("player disconnected: %s\n", user)
+	}()
+
+	games, err := repo.ListGames(ctx, user)
 	if err != nil {
-		log.Printf("failed to list games for user %s: %v", userID, err.Error())
+		log.Printf("failed to list games for user %s: %v", user, err.Error())
 		return
 	}
 
 	if len(games) > 0 {
-		mostRecentGame := games[len(games)-1]
-		if mostRecentGame.Answer == wordOfTheDay() {
-			RenderStats(ctx, s, term, &mostRecentGame)
+		lastGame := games[len(games)-1]
+		if lastGame.Answer == wordOfTheDay() {
+			RenderStats(s, term, &lastGame)
 			return
 		}
 	}
@@ -62,40 +73,43 @@ func handler(s ssh.Session) {
 
 	for {
 		word, err := term.ReadLine()
-		if err == io.EOF {
-			fmt.Printf("got EOF: %v", err)
+		if err != nil {
+			log.Printf("read line err: %v", err)
 			return
 		}
 
 		err, win := game.Guess(word)
-		if err != nil {
-			if errors.Is(err, ErrGameOver) {
-				// Ran out of guesses, game over
-				Render(s, term, game)
-				time.Sleep(time.Millisecond * 500)
-				Warn(s, term, game.Answer)
-				repo.SaveGame(ctx, userID, game)
-				RenderStats(ctx, s, term, game)
-				return
-			}
-			Warn(s, term, err.Error())
-		}
-
-		Render(s, term, game)
-
-		if win {
-			time.Sleep(time.Millisecond * 500)
+		switch {
+		case win:
+			// Win, game over
+			Render(s, term, game)
+			time.Sleep(time.Millisecond * 700)
 			WarnGreen(s, term, "Winner!\n")
-			repo.SaveGame(ctx, userID, game)
-			RenderStats(ctx, s, term, game)
+			repo.SaveGame(ctx, user, game)
+			RenderStats(s, term, game)
 			return
+		case err != nil && errors.Is(err, ErrGameOver):
+			// Lose, game over
+			Render(s, term, game)
+			time.Sleep(time.Millisecond * 700)
+			Warn(s, term, game.Answer)
+			repo.SaveGame(ctx, user, game)
+			RenderStats(s, term, game)
+			return
+		case err != nil:
+			// General error, warn and keep going
+			Warn(s, term, err.Error())
+			fallthrough
+		default:
+			// Keep going
+			Render(s, term, game)
 		}
 	}
 }
 
-func RenderStats(ctx context.Context, s ssh.Session, term *terminal.Terminal, game *Game) {
-	userID := userKey(s)
-	games, _ := repo.ListGames(ctx, userID)
+func RenderStats(s ssh.Session, term *terminal.Terminal, game *Game) {
+	user := userKey(s)
+	games, _ := repo.ListGames(s.Context(), user)
 
 	Render(s, term, game)
 	Print(s, term, "\n    Statistics\n")
@@ -159,14 +173,14 @@ func Render(s ssh.Session, term *terminal.Terminal, game *Game) {
 func Warn(s ssh.Session, term *terminal.Terminal, text string) {
 	Clear(s)
 	PrintRed(s, term, text)
-	time.Sleep(time.Second * 1)
+	time.Sleep(time.Millisecond * 500)
 	Clear(s)
 }
 
 func WarnGreen(s ssh.Session, term *terminal.Terminal, text string) {
 	Clear(s)
 	PrintGreen(s, term, text)
-	time.Sleep(time.Second * 1)
+	time.Sleep(time.Millisecond * 500)
 	Clear(s)
 }
 
