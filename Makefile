@@ -2,7 +2,7 @@ build:
 	go build -o ./bin/wordle .
 
 run: wordle.db
-	./bin/wordle -cert key.pem -port 2222
+	./bin/wordle -key key.pem -port 2222
 
 wordle.db:
 	@touch $@
