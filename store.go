@@ -35,20 +35,41 @@ type sqliteRepo struct {
 }
 
 func (r *sqliteRepo) SaveGame(ctx context.Context, userID string, game *Game) error {
-	const insert = `insert into game(user, data) values(?, ?)`
+	const (
+		insert = `insert into game(user, data) values(?, ?)`
+		update = `update game set data=? where id=?`
+	)
 
-	stmt, err := r.DB.Prepare(insert)
-	if err != nil {
-		return err
-	}
+	switch {
+	case game.ID != 0:
+		stmt, err := r.DB.Prepare(update)
+		if err != nil {
+			return err
+		}
 
-	data, err := json.Marshal(game)
-	if err != nil {
-		return err
-	}
+		data, err := json.Marshal(game)
+		if err != nil {
+			return err
+		}
 
-	if _, err := stmt.Exec(userID, data); err != nil {
-		return err
+		if _, err := stmt.Exec(data, game.ID); err != nil {
+			return err
+		}
+
+	default:
+		stmt, err := r.DB.Prepare(insert)
+		if err != nil {
+			return err
+		}
+
+		data, err := json.Marshal(game)
+		if err != nil {
+			return err
+		}
+
+		if _, err := stmt.Exec(userID, data); err != nil {
+			return err
+		}
 	}
 
 	return nil
@@ -86,6 +107,7 @@ func (r *sqliteRepo) ListGames(ctx context.Context, user string) ([]Game, error)
 		if err := json.Unmarshal(data, &game); err != nil {
 			return nil, fmt.Errorf("failed to decode game")
 		}
+		game.ID = id
 
 		games = append(games, game)
 	}

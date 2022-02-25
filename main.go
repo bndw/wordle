@@ -23,8 +23,10 @@ var (
 )
 
 func main() {
-	hostKey := flag.String("key", "key.pem", "key")
-	port := flag.String("port", "22", "port")
+	var (
+		hostKey = flag.String("key", "key.pem", "key")
+		port    = flag.String("port", "22", "port")
+	)
 	flag.Parse()
 
 	var err error
@@ -76,8 +78,14 @@ func handler(s ssh.Session) {
 	if len(games) > 0 {
 		lastGame := games[0]
 		if lastGame.Answer == wordOfTheDay() {
-			RenderStats(s, term, &lastGame)
-			return
+			if lastGame.IsDone() {
+				// Today's game is already complete
+				RenderStats(s, term, &lastGame)
+				return
+			} else {
+				// Continue the unfinished game
+				game = &lastGame
+			}
 		}
 	}
 
@@ -112,35 +120,14 @@ func handler(s ssh.Session) {
 		case err != nil:
 			// General error, warn and keep going
 			Warn(s, term, err.Error())
+			repo.SaveGame(ctx, user, game)
 			fallthrough
 		default:
 			// Keep going
+			repo.SaveGame(ctx, user, game)
 			Render(s, term, game)
 		}
 	}
-}
-
-func RenderStats(s ssh.Session, term *terminal.Terminal, game *Game) {
-	user := userKey(s)
-	games, _ := repo.ListGames(s.Context(), user)
-
-	Render(s, term, game)
-	Print(s, term, "\n    Statistics\n")
-	Print(s, term, fmt.Sprintf("played..................%d\n", Played(games)))
-	Print(s, term, fmt.Sprintf("win %%...................%d\n", WinPercent(games)))
-	Print(s, term, fmt.Sprintf("current streak..........%d\n", CurrentStreak(games)))
-	Print(s, term, fmt.Sprintf("max streak..............%d\n", MaxStreak(games)))
-	Print(s, term, "guess distribution.......\n")
-	for i, val := range GuessDistribution(games) {
-		Print(s, term, fmt.Sprintf("    %d...................%d\n", i+1, val))
-	}
-
-	var (
-		now   = time.Now()
-		hours = (24 - now.Hour()) - 1
-		mins  = 60 - now.Minute()
-	)
-	Print(s, term, fmt.Sprintf("\nNext Wordle in %d hours %d mins\n", hours, mins))
 }
 
 func Render(s ssh.Session, term *terminal.Terminal, game *Game) {
@@ -181,6 +168,29 @@ func Render(s ssh.Session, term *terminal.Terminal, game *Game) {
 		// Print rows of empty boxes for each remaining guess.
 		Print(s, term, "[ ][ ][ ][ ][ ]\n")
 	}
+}
+
+func RenderStats(s ssh.Session, term *terminal.Terminal, game *Game) {
+	user := userKey(s)
+	games, _ := repo.ListGames(s.Context(), user)
+
+	Render(s, term, game)
+	Print(s, term, "\n    Statistics\n")
+	Print(s, term, fmt.Sprintf("played..................%d\n", Played(games)))
+	Print(s, term, fmt.Sprintf("win %%...................%d\n", WinPercent(games)))
+	Print(s, term, fmt.Sprintf("current streak..........%d\n", CurrentStreak(games)))
+	Print(s, term, fmt.Sprintf("max streak..............%d\n", MaxStreak(games)))
+	Print(s, term, "guess distribution.......\n")
+	for i, val := range GuessDistribution(games) {
+		Print(s, term, fmt.Sprintf("    %d...................%d\n", i+1, val))
+	}
+
+	var (
+		now   = time.Now()
+		hours = (24 - now.Hour()) - 1
+		mins  = 60 - now.Minute()
+	)
+	Print(s, term, fmt.Sprintf("\nNext Wordle in %d hours %d mins\n", hours, mins))
 }
 
 func Warn(s ssh.Session, term *terminal.Terminal, text string) {

@@ -15,6 +15,7 @@ var (
 )
 
 type Game struct {
+	ID       int64
 	Answer   string
 	Guesses  []string
 	Started  time.Time
@@ -55,7 +56,7 @@ func (g *Game) Guess(word string) (error, bool) {
 }
 
 func (g *Game) IsDone() bool {
-	return len(g.Guesses) == MaxGuesses
+	return g.Won || len(g.Guesses) == MaxGuesses
 }
 
 func (g *Game) String() string {
