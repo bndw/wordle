@@ -74,7 +74,7 @@ func handler(s ssh.Session) {
 	}
 
 	if len(games) > 0 {
-		lastGame := games[len(games)-1]
+		lastGame := games[0]
 		if lastGame.Answer == wordOfTheDay() {
 			RenderStats(s, term, &lastGame)
 			return
