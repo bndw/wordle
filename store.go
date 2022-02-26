@@ -36,8 +36,8 @@ type sqliteRepo struct {
 
 func (r *sqliteRepo) SaveGame(ctx context.Context, userID string, game *Game) error {
 	const (
-		insert = `insert into game(user, data) values(?, ?)`
-		update = `update game set data=? where id=?`
+		insert = `INSERT INTO game(user, data) VALUES(?, ?)`
+		update = `UPDATE game SET data=? WHERE id=?`
 	)
 
 	switch {
@@ -75,7 +75,7 @@ func (r *sqliteRepo) SaveGame(ctx context.Context, userID string, game *Game) er
 	return nil
 }
 
-func (r *sqliteRepo) ListGames(ctx context.Context, user string) ([]Game, error) {
+func (r *sqliteRepo) ListGames(ctx context.Context, user string) (Games, error) {
 	var (
 		query string
 		rows  *sql.Rows
@@ -94,7 +94,7 @@ func (r *sqliteRepo) ListGames(ctx context.Context, user string) ([]Game, error)
 	}
 	defer rows.Close()
 
-	games := make([]Game, 0)
+	games := make(Games, 0)
 	for rows.Next() {
 		var (
 			id   int64

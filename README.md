@@ -1,10 +1,14 @@
-# WordleSSH
+# Wordle over SSH
 
-Wordle over SSH
+Play Wordle over SSH!
+
+```
+ssh wordle.bdw.to
+```
 
 ## Run locally
 
-Run the server on :2222
+To run the server locally on :2222, first generate a PEM file `key.pem` in this directory and then run:
 
 ```
 make build run
@@ -14,13 +18,4 @@ From another terminal, connect:
 
 ```
 make ssh
-```
-
-To generate a key.pem cert, use this:
-https://go.dev/src/crypto/tls/generate_cert.go
-
-## How to play
-
-```
-ssh wordle.bdw.to
 ```

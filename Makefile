@@ -8,7 +8,7 @@ wordle.db:
 	@touch $@
 
 ssh:
-	ssh -p 2222 -i ~/.ssh/id_rsa localhost
+	ssh -p 2222 localhost
 
 test:
 	go test -v ./...
